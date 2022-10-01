@@ -48,13 +48,13 @@ function LOGSUCCESS() # 打印日志: 成功级别, stdout
     return 0
 }
 
-function LOGWARNNING() # 打印日志: 警告级别, stderr
+function LOGWARNING() # 打印日志: 警告级别, stderr
 {
     OLDIFS=${IFS}
     IFS=$' \t\n'
     time=$(date "+[%F %T]")
     local msg
-    msg="${time}\tWARN\t${script_name}\t$*"
+    msg="${time}\tWARNING\t${script_name}\t$*"
     ${SETCOLOR_WARNING}
     echo -e "${msg}" >&2
     ${SETCOLOR_NORMAL}
