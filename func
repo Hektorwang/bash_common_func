@@ -1,6 +1,9 @@
 #!/bin/bash
-# 20220711
+# 20221001
 # han
+
+# shellcheck disable=SC1090,SC1091,SC2034,SC2046,SC2086,SC2116,SC2154
+
 export LANG=en_US.UTF-8
 export LC_CTYPE=en_US.UTF-8
 export 'NLS_LANG=american_america.AL32UTF8'
@@ -25,7 +28,6 @@ function LOGINFO() # 打印日志: 信息级别, stdout
     msg="${time}\tINFO\t${script_name}\t$*"
     echo -e "${msg}"
     ${SETCOLOR_NORMAL}
-    # shellcheck disable=SC1090,SC1091,SC2034,SC2046,SC2086,SC2116,SC2154
     [[ -f "${log_file}" ]] && echo -e "${msg}" >> "${log_file}"
     IFS=${OLDIFS}
     return 0
@@ -56,7 +58,6 @@ function LOGWARNNING() # 打印日志: 警告级别, stderr
     ${SETCOLOR_WARNING}
     echo -e "${msg}" >&2
     ${SETCOLOR_NORMAL}
-    # shellcheck disable=SC1090,SC1091,SC2034,SC2046,SC2086,SC2116,SC2154
     if [[ -f "${log_err}" ]]
     then
             echo -e "${msg}" >> "${log_err}"
@@ -113,13 +114,53 @@ function LOGDEBUG() # 打印日志: 失败级别, stderr
     return 0
 }
 
-function read_conf() # 读取section、keyword形式的配置文件 read_conf conf_file section key
-{
-    self_sect=$2;self_conf=$1;self_key=$3
-    temp_conf=$(grep -vE "^$|^#" "${self_conf}" | sed -n "/\[${self_sect}\]/I,/\[/p" | sed "/^\[/d")
-    self_result=$(echo "${temp_conf}" | grep -iw "${self_key}" | cut -d= -f2 | tail -n1)
-    # shellcheck disable=SC1090,SC1091,SC2034,SC2046,SC2086,SC2116,SC2154
-    eval "$(echo "${self_key}"="${self_result}")"
+function str_strip {
+  #######################################
+  # 将字符串去掉头尾的" |\n|\r|\t"
+  # Globals:
+  # Arguments:
+  #   $1 需要strip的字符串
+  # Outputs:
+  #   $1经过strip的值
+  # Returns:
+  #   None
+  #######################################
+  local str=$1
+  echo ${str} | awk \
+    'function trim(str) {sub("^[ \t\n\r]*", "", str);sub("[ \t\n\r]*$", "", str); return str} \
+    {printf (trim($0))}'
+}
+
+
+function read_conf {
+  #######################################
+  # 读取ini文件中指定section下指定key的value
+  # Globals:
+  #   $key
+  # Arguments:
+  #   $1 ini文件
+  #   $2 section
+  #   $3 key
+  # Outputs:
+  #   None
+  # Returns:
+  #   None
+  #######################################
+
+ # 读取section、keyword形式的配置文件 read_conf conf_file section key
+
+  local self_conf=$1 # ini文件
+  local self_sect=$2 # section
+  local self_key=$3 # key
+
+  temp_conf=$(grep -vE "^$|^#|^;" "${self_conf}" \
+    | sed -n "/\[${self_sect}\]/I,/\[/p" \
+    | sed "/^\[/d")
+  self_result=$(echo "${temp_conf}" \
+    | awk -F '=' \
+    'BEGIN{IGNORECASE=1} $1~/^'"${self_key}"'$/{res=$2}END{print res}')
+  self_result=$(str_strip "${self_result}")
+  eval "$(echo "${self_key}"="${self_result}")"
 }
 
 function read_conf_section() # 读取section、keyword形式的配置文件并将整个section的所有k-v都声明出来 read_conf conf_file section
@@ -127,7 +168,7 @@ function read_conf_section() # 读取section、keyword形式的配置文件并�
   OLDIFS=${IFS}
   IFS=$'\n'
   self_sect=$2;self_conf=$1
-  temp_conf=$(grep -v ^# "$self_conf"|grep -v "^$"|sed -n "/\[${self_sect}\]/I,/^\[/p"|sed "/^\[/d")
+  temp_conf=$(grep -v "^#" "$self_conf"|grep -v "^$"|sed -n "/\[${self_sect}\]/I,/^\[/p"|sed "/^\[/d")
   for line in ${temp_conf}
   do
     #echo $line
@@ -146,11 +187,8 @@ function getSections(){ # 读取ini文件所有的sections ,参数个数 1,参�
 }
 
 function check_var() { # 如果变量3不在环境变量里,就读配置文件,如果配置文件也没有就报错退出
-    # shellcheck disable=SC1090,SC1091,SC2034,SC2046,SC2086,SC2116,SC2154
     key=$(eval echo $(echo "$"$3))
-    # shellcheck disable=SC1090,SC1091,SC2034,SC2046,SC2086,SC2116,SC2154
     [[ "" == "${key}" ]] && read_conf "$1" "$2" "$3"
-    # shellcheck disable=SC1090,SC1091,SC2034,SC2046,SC2086,SC2116,SC2154
     key=$(eval echo $(echo "$"$3))
     [[ "" == "${key}" ]] && LOGERROR "$3 变量为空，请检查配置文件。 " && exit 3
     unset key
