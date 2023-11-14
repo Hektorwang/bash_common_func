@@ -52,7 +52,7 @@ function LOGWARNING() { # 打印日志: 警告级别, stderr
   msg="${time}\tWARNING\t${script_name}\t$*"
   ${SETCOLOR_WARNING}
   {
-    echo -e "${msg}" | tee -a "${log_file:-/dev/null}" 
+    echo -e "${msg}" | tee -a "${log_file:-/dev/null}"
   } >&2
   ${SETCOLOR_NORMAL}
   return 0
@@ -101,35 +101,59 @@ function str_strip {
     {printf (trim($0))}'
 }
 
+#######################################
+# 读取ini文件中第一个指定 section 下第一个指定 key 的 value
+# Globals:
+# Arguments:
+#   ini文件
+#   section
+#   key
+# Outputs:
+#   None
+# Returns:
+#   0: 成功读取
+#   1: ini_file 不存在
+#   2: 未读取到指定键
+#   99: 缺少参数
+#######################################
 function read_conf {
-  #######################################
-  # 读取ini文件中指定section下指定key的value
-  # Globals:
-  #   $key
-  # Arguments:
-  #   $1 ini文件
-  #   $2 section
-  #   $3 key
-  # Outputs:
-  #   None
-  # Returns:
-  #   None
-  #######################################
+  local self_conf self_sect self_key temp_conf self_result
+  self_conf=$1 # ini文件
+  self_sect=$2 # section
+  self_key=$3  # key
+  if [[ -z "${self_conf}" ]] || [[ -z "${self_sect}" ]] || [[ -z "${self_key}" ]]; then
+    LOGERROR "缺少参数: ini_file: \"${self_conf}\" section: \"${self_sect}\" key: \"${self_key}\""
+    exit 99
+  fi
+  if [[ ! -s "${self_conf}" ]]; then
+    LOGERROR "配置文件不存在或大小为 0: \"${self_conf}\""
+    exit 1
+  fi
 
-  # 读取section、keyword形式的配置文件 read_conf conf_file section key
-
-  local self_conf=$1 # ini文件
-  local self_sect=$2 # section
-  local self_key=$3  # key
-
-  temp_conf=$(grep -vE "^$|^#|^;" "${self_conf}" |
+  temp_conf=$(grep -vE "^\s*$|^\s*#|^\s*;" "${self_conf}" |
     sed -n "/\[${self_sect}\]/I,/\[/p" |
     sed "/^\[/d")
-  self_result=$(echo "${temp_conf}" |
-    awk -F '=' \
-      'BEGIN{IGNORECASE=1} $1~/^'"${self_key}"'$/{res=$2}END{print res}')
-  self_result=$(str_strip "${self_result}")
-  eval "$(echo "${self_key}"="${self_result}")"
+
+  if [[ -z "${temp_conf}" ]] ||
+    ! (echo "${temp_conf}" | grep -qE "^\s*${self_key}\s*="); then
+    LOGERROR "段不存在或段内无指定键: \"${self_sect}\", \"${self_key}\""
+    exit 2
+  else
+    # self_result=$(echo "${temp_conf}" |
+    #   awk -F '=' 'BEGIN {IGNORECASE=1} $1~/^'"${self_key}"'$/ {res=$2} END {print res}')
+    self_result=$(
+      echo "${temp_conf}" | grep -E "^\s*${self_key}\s*=" |
+        awk -v key="${self_key}" '
+        BEGIN {IGNORECASE=1}
+        {
+          gsub("^[[:space:]]*"key"[[:space:]]*=[[:space:]]*|[[:space:]]+$","",$0)
+          print
+        }'
+    )
+    self_result="$(str_strip "${self_result}")"
+    eval "$(echo "${self_key}"=\"${self_result}\")"
+    # declare -x "${self_key}"=\""${self_result}"\"
+  fi
 }
 
 function read_conf_section() { # 读取section、keyword形式的配置文件并将整个section的所有k-v都声明出来 read_conf conf_file section
@@ -137,9 +161,8 @@ function read_conf_section() { # 读取section、keyword形式的配置文件并
   IFS=$'\n'
   self_sect=$2
   self_conf=$1
-  temp_conf=$(grep -v "^#" "$self_conf" | grep -v "^$" | sed -n "/\[${self_sect}\]/I,/^\[/p" | sed "/^\[/d")
+  temp_conf=$(grep -vE "^(\s+)?#|^(\s+)?$" "$self_conf" | sed -n "/\[${self_sect}\]/I,/^\[/p" | sed "/^\[/d")
   for line in ${temp_conf}; do
-    #echo $line
     eval "${line}"
   done
   IFS=${OLDIFS}
@@ -242,7 +265,7 @@ gracefully_abort() {
 # 参数:
 #   PID
 #   用于优雅中止的信号量 (可选参数, 默认 15|TERM)
-#   优雅中止等待时间 (可选参数, 默认 30 秒. 
+#   优雅中止等待时间 (可选参数, 默认 30 秒.
 #     合法的单位有: s|m|h|d. 无单位默认 s. 支持小数)
 # 输出:
 #   遇到错误则将错误信息输出到 stderr
@@ -268,8 +291,8 @@ proc_killer() {
   fi
   local term_grace_duration=30
   if [[ -n "$3" ]]; then
-    term_grace_duration="$(_conv2sec "$3")" \
-      || LOGERROR "${FUNCNAME[0]}: 接收参数异常(DURATION: $3)"
+    term_grace_duration="$(_conv2sec "$3")" ||
+      LOGERROR "${FUNCNAME[0]}: 接收参数异常(DURATION: $3)"
   fi
 
   # 判断进程是否存活
@@ -290,7 +313,7 @@ proc_killer() {
         echo "${timer} ${term_grace_duration}" | awk '{print ($1>$2)?1:0}'
       )"
       # 缓冲期结束进程仍未中止, 则进行暴力中止
-      if (( cmp_res == 1 )); then
+      if ((cmp_res == 1)); then
         kill -"${sig}" -- "${pid}" &>/dev/null
         break
       fi
@@ -299,7 +322,7 @@ proc_killer() {
 }
 
 ##################################################
-# 简版 timeout 命令, 用法: tmout DURATION COMMAND 
+# 简版 timeout 命令, 用法: tmout DURATION COMMAND
 # 参数:
 #   持续时间 (支持小数. 合法的单位有: s|m|h|d. 无单位默认 s)
 #   执行的命令
@@ -309,14 +332,14 @@ proc_killer() {
 #   遇到错误则 exit 1, 超时 return 124
 ##################################################
 tmout() {
-  (( $# < 2 )) && LOGERROR "${FUNCNAME[0]}: 接收参数异常(\$*: $*)"
+  (($# < 2)) && LOGERROR "${FUNCNAME[0]}: 接收参数异常(\$*: $*)"
 
   # 获取超时时间和希望执行的命令
   local duration
-  duration="$(_conv2sec "$1")" \
-    || LOGERROR "${FUNCNAME[0]}: 接收参数异常(DURATION: ${1})"
+  duration="$(_conv2sec "$1")" ||
+    LOGERROR "${FUNCNAME[0]}: 接收参数异常(DURATION: ${1})"
   shift 1
-  local cmd=( "$@" )
+  local cmd=("$@")
 
   # 运行后台任务
   "${cmd[@]}" &
@@ -328,8 +351,8 @@ tmout() {
   local -r step=0.2
   while sleep "${step}"; do
     timer="$(echo "${timer}" | awk -v step="${step}" '{print step+$0}')"
-    (( "$(echo "${timer} ${duration}" | awk '{print ($1>$2)?1:0}')" == 1 )) \
-      && break
+    (("$(echo "${timer} ${duration}" | awk '{print ($1>$2)?1:0}')" == 1)) &&
+      break
     kill -0 "${pid}" &>/dev/null || break
   done
 
@@ -339,6 +362,6 @@ tmout() {
   # 定义返回码
   wait "${pid}" &>/dev/null
   local ret_code="$?"
-  (( ret_code > 128 )) && ret_code=124
+  ((ret_code > 128)) && ret_code=124
   return "${ret_code}"
 }
