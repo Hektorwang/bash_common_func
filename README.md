@@ -198,7 +198,7 @@ The library exports color control variables:
 
 ## License
 
-[Specify your license here]
+MIT © [Hektorwang]
 
 ## Contributing
 

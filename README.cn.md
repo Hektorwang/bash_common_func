@@ -198,7 +198,7 @@ echo "$system_info" | jq -r '.machine_type'  # "vm" 或 "pm"
 
 ## 许可证
 
-[在此指定您的许可证]
+MIT © [Hektorwang]
 
 ## 贡献
 
