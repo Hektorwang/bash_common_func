@@ -206,7 +206,7 @@ export -f version_gt version_lt version_eq version_ge version_le
 #   "$@" (脚本级别位置变量 $@)
 ##################################################
 function debug {
-    if [[ "$(eval echo "\${$#}")" != "debug" ]]; then
+    if [[ "${!#}" != "debug" ]]; then
         DEBUG=false
         return 0
     fi
@@ -300,6 +300,7 @@ function _conv2sec {
     # 使用正则提取数字和单位（兼容小数）
     if [[ "$input" =~ ^([0-9]+(\.[0-9]+)?)([smhdSMHD]?)$ ]]; then
         number="${BASH_REMATCH[1]}"
+        unit="${BASH_REMATCH[3]}"
         unit=$(echo "$unit" | tr '[:upper:]' '[:lower:]')
         case "$unit" in
         "") result="$number" ;; # 默认为秒
