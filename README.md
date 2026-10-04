@@ -1,19 +1,21 @@
 # Bash Function Library
 
-A comprehensive collection of reusable Bash functions for logging, configuration management, process control, and system detection.
+A comprehensive collection of reusable Bash functions for logging, configuration management, string processing, array/JSON conversion, process control, directory backup, and system detection.
 
 ## Requirements
 
 - Bash 4.0 or higher
 - Standard Unix utilities: `awk`, `sed`, `date`, `sort`
-- Optional: `jq` (required for `detect_system_info` function)
+- Optional: `jq` (required for `detect_system_info`, `array_to_json`, `associate_array_to_json`)
+- Optional: `perl` (required for `str_strip` full Unicode whitespace coverage; falls back to a pure-bash implementation when absent)
 
 ## Features
 
 ### Logging System
 - Color-coded log levels (DEBUG, INFO, SUCCESS, WARNING, ERROR)
-- Automatic timestamp and line number tracking
-- File and console output support
+- DEBUG/WARNING/ERROR go to stderr, INFO/SUCCESS go to stdout
+- Colored terminal output and plain-text log-file writing are two separate paths: `log_file` never contains ANSI escape codes
+- Automatic timestamp and caller line number tracking
 - Functions: `LOGDEBUG`, `LOGINFO`, `LOGSUCCESS`, `LOGWARNING`, `LOGERROR`
 
 ### Configuration Management
@@ -23,9 +25,21 @@ A comprehensive collection of reusable Bash functions for logging, configuration
 - Functions: `get_ini_value`, `get_var`
 
 ### String Processing
-- Strip leading/trailing whitespace, tabs, newlines
-- Support for full-width spaces (CJK)
-- Function: `str_strip`
+- Strip leading/trailing whitespace
+- `str_strip` prefers `perl` and covers the full Unicode whitespace set (NBSP U+00A0, ideographic space U+3000, etc.)
+- Automatically falls back to a pure-bash implementation when `perl` is unavailable
+- Functions: `str_strip`, `str_strip_alternative`
+
+### Array & JSON Utilities
+- Convert a regular array to a JSON array string
+- Convert an associative array to a JSON object string (key/value pairs)
+- Check whether an element exists in an array
+- Functions: `array_to_json`, `associate_array_to_json`, `is_element_in_array` (the first two require `jq`)
+
+### Directory Backup
+- Back up a target directory as `<dir>.bak_<YYYYMMDDHHMMSS>`
+- Automatic rotation cleanup with a configurable maximum number of backups (default 5)
+- Function: `backup_dir_with_rotation`
 
 ### Version Comparison
 - Semantic version comparison (gt, lt, eq, ge, le)
@@ -64,7 +78,7 @@ A comprehensive collection of reusable Bash functions for logging, configuration
 #!/usr/bin/env bash
 source /path/to/func
 
-# Optional: Set log file
+# Optional: Set log file (always plain text)
 export log_file="/var/log/myscript.log"
 ```
 
@@ -92,6 +106,33 @@ db_port=$(get_ini_value "config.ini" "database" "port")
 # Or use get_var to check environment first, then config
 get_var "config.ini" "database" "db_host"
 echo "Database host: $db_host"
+```
+
+### Array & JSON
+
+```bash
+# Regular array → JSON array
+arr=("value1" "value2" "value3")
+array_to_json "${arr[@]}"          # ["value1","value2","value3"]
+
+# Associative array → JSON object
+declare -A assoc=([key1]="value1" [key2]="value2")
+associate_array_to_json "${!assoc[@]}" "${assoc[@]}"
+# {"key1":"value1","key2":"value2"}
+
+# Check element membership
+fruits=("apple" "banana")
+if is_element_in_array "apple" "${fruits[@]}"; then
+    echo "apple is in the list"
+fi
+```
+
+### Directory Backup
+
+```bash
+# Back up /etc/myapp, keep at most 5 copies (default is 5)
+backup_dir_with_rotation "/etc/myapp" 5
+# Produces /etc/myapp.bak_20261005093000
 ```
 
 ### Version Comparison
@@ -148,9 +189,14 @@ echo "$system_info" | jq -r '.machine_type'  # "vm" or "pm"
 | Function | Description | Return Codes |
 |----------|-------------|--------------|
 | `LOGDEBUG/INFO/SUCCESS/WARNING/ERROR` | Log messages with levels | Always 0 |
-| `str_strip` | Remove leading/trailing whitespace | - |
+| `str_strip` | Remove leading/trailing whitespace (perl preferred) | - |
+| `str_strip_alternative` | Pure-bash whitespace stripping (fallback of `str_strip`) | - |
 | `get_ini_value` | Get value from INI file | 0=success, 1=file error, 2=key not found, 99=missing args |
 | `get_var` | Load variable from env or config | 0=success, 3=not found |
+| `array_to_json` | Convert array to JSON array string | - |
+| `associate_array_to_json` | Convert associative array to JSON object string | - |
+| `is_element_in_array` | Check element membership in array | 0=yes, 1=no |
+| `backup_dir_with_rotation` | Back up directory with rotation | 0=success, 1=missing args or dir not found, 2=backup failed |
 | `version_gt/lt/eq/ge/le` | Compare versions | 0=true, 1=false |
 | `debug` | Enable xtrace mode | 0 |
 | `gracefully_abort` | Handle user interruption | Exits with 1 |
@@ -161,18 +207,9 @@ echo "$system_info" | jq -r '.machine_type'  # "vm" or "pm"
 
 ## Environment Variables
 
-- `log_file`: Path to log file (default: `/dev/null`)
+- `log_file`: Path to log file (default: `/dev/null`), always plain text
 - `DEBUG`: Set to `true` to enable debug mode
 - `VM_PRODUCT_NAME_PATTERNS`: Custom regex for VM detection
-
-## Color Codes
-
-The library exports color control variables:
-- `SETCOLOR_DEBUG`: White
-- `SETCOLOR_NORMAL`: Default
-- `SETCOLOR_SUCCESS`: Green
-- `SETCOLOR_WARNING`: Yellow
-- `SETCOLOR_ERROR`: Red
 
 ## Best Practices
 
@@ -184,9 +221,9 @@ The library exports color control variables:
 
 ## Troubleshooting
 
-**Q: Colors not showing in logs**
-- Ensure your terminal supports ANSI color codes
-- Check if output is being piped (colors disabled in pipes by default)
+**Q: Does the log file contain ANSI color codes?**
+- No. Colored output goes to the terminal only; everything written to `log_file` is plain text
+- If you see garbled escape sequences on screen, the terminal does not support ANSI colors
 
 **Q: `detect_system_info` fails**
 - Install `jq`: `apt install jq` or `yum install jq`

@@ -1,19 +1,21 @@
 # Bash 函数库
 
-一个全面的 Bash 可复用函数集合，提供日志记录、配置管理、进程控制和系统检测功能。
+一个全面的 Bash 可复用函数集合，提供日志记录、配置管理、字符串处理、数组与 JSON 转换、进程控制、目录备份和系统检测功能。
 
 ## 系统要求
 
 - Bash 4.0 或更高版本
 - 标准 Unix 工具：`awk`、`sed`、`date`、`sort`
-- 可选：`jq`（`detect_system_info` 函数需要）
+- 可选：`jq`（`detect_system_info`、`array_to_json`、`associate_array_to_json` 函数需要）
+- 可选：`perl`（`str_strip` 完整 Unicode 空白支持需要，缺失时自动退化为纯 bash 实现）
 
 ## 功能特性
 
 ### 日志系统
 - 彩色分级日志（DEBUG、INFO、SUCCESS、WARNING、ERROR）
-- 自动记录时间戳和行号
-- 支持文件和控制台输出
+- DEBUG/WARNING/ERROR 写向 stderr，INFO/SUCCESS 写向 stdout
+- 终端彩色输出与日志文件纯文本写入两路分离：`log_file` 中不含 ANSI 转义符
+- 自动记录时间戳和调用行号
 - 函数：`LOGDEBUG`、`LOGINFO`、`LOGSUCCESS`、`LOGWARNING`、`LOGERROR`
 
 ### 配置管理
@@ -23,9 +25,21 @@
 - 函数：`get_ini_value`、`get_var`
 
 ### 字符串处理
-- 去除前导和尾随空白字符、制表符、换行符
-- 支持全角空格（CJK）
-- 函数：`str_strip`
+- 去除前导和尾随空白字符
+- `str_strip` 优先使用 `perl`，覆盖全部 Unicode 空白（含 NBSP U+00A0、全角空格 U+3000 等）
+- 无 `perl` 环境自动退化为纯 bash 实现，无需干预
+- 函数：`str_strip`、`str_strip_alternative`
+
+### 数组与 JSON 工具
+- 普通数组转换为 JSON 数组字符串
+- 关联数组转换为 JSON 对象字符串（键值对）
+- 判断元素是否存在于数组中
+- 函数：`array_to_json`、`associate_array_to_json`、`is_element_in_array`（前两者依赖 `jq`）
+
+### 目录备份
+- 备份目标目录，备份名形如 `<目录>.bak_<YYYYMMDDHHMMSS>`
+- 自动轮换清理，最多保留份数可指定（默认 5）
+- 函数：`backup_dir_with_rotation`
 
 ### 版本比较
 - 语义化版本比较（大于、小于、等于、大于等于、小于等于）
@@ -64,7 +78,7 @@
 #!/usr/bin/env bash
 source /path/to/func
 
-# 可选：设置日志文件
+# 可选：设置日志文件（始终写入纯文本）
 export log_file="/var/log/myscript.log"
 ```
 
@@ -92,6 +106,33 @@ db_port=$(get_ini_value "config.ini" "database" "port")
 # 或使用 get_var 先检查环境变量，再读取配置
 get_var "config.ini" "database" "db_host"
 echo "数据库主机：$db_host"
+```
+
+### 数组与 JSON
+
+```bash
+# 普通数组 → JSON 数组
+arr=("value1" "value2" "value3")
+array_to_json "${arr[@]}"          # ["value1","value2","value3"]
+
+# 关联数组 → JSON 对象
+declare -A assoc=([key1]="value1" [key2]="value2")
+associate_array_to_json "${!assoc[@]}" "${assoc[@]}"
+# {"key1":"value1","key2":"value2"}
+
+# 判断元素是否在数组中
+fruits=("apple" "banana")
+if is_element_in_array "apple" "${fruits[@]}"; then
+    echo "apple 在列表中"
+fi
+```
+
+### 目录备份
+
+```bash
+# 备份 /etc/myapp，最多保留 5 份（缺省即为 5）
+backup_dir_with_rotation "/etc/myapp" 5
+# 生成 /etc/myapp.bak_20261005093000
 ```
 
 ### 版本比较
@@ -148,9 +189,14 @@ echo "$system_info" | jq -r '.machine_type'  # "vm" 或 "pm"
 | 函数 | 描述 | 返回值 |
 |------|------|--------|
 | `LOGDEBUG/INFO/SUCCESS/WARNING/ERROR` | 分级日志记录 | 始终为 0 |
-| `str_strip` | 去除前导和尾随空白 | - |
+| `str_strip` | 去除前导和尾随空白（perl 优先） | - |
+| `str_strip_alternative` | 纯 bash 空白剥离（`str_strip` 的退化实现） | - |
 | `get_ini_value` | 从 INI 文件获取值 | 0=成功, 1=文件错误, 2=键未找到, 99=参数缺失 |
 | `get_var` | 从环境或配置加载变量 | 0=成功, 3=未找到 |
+| `array_to_json` | 普通数组转 JSON 数组字符串 | - |
+| `associate_array_to_json` | 关联数组转 JSON 对象字符串 | - |
+| `is_element_in_array` | 判断元素是否在数组中 | 0=在, 1=不在 |
+| `backup_dir_with_rotation` | 目录备份与轮换清理 | 0=成功, 1=参数缺失或目录不存在, 2=备份失败 |
 | `version_gt/lt/eq/ge/le` | 版本比较 | 0=真, 1=假 |
 | `debug` | 启用 xtrace 调试模式 | 0 |
 | `gracefully_abort` | 处理用户中断 | 退出码 1 |
@@ -161,18 +207,9 @@ echo "$system_info" | jq -r '.machine_type'  # "vm" 或 "pm"
 
 ## 环境变量
 
-- `log_file`：日志文件路径（默认：`/dev/null`）
+- `log_file`：日志文件路径（默认：`/dev/null`），内容始终为纯文本
 - `DEBUG`：设置为 `true` 启用调试模式
 - `VM_PRODUCT_NAME_PATTERNS`：自定义虚拟机检测正则表达式
-
-## 颜色代码
-
-函数库导出以下颜色控制变量：
-- `SETCOLOR_DEBUG`：白色
-- `SETCOLOR_NORMAL`：默认
-- `SETCOLOR_SUCCESS`：绿色
-- `SETCOLOR_WARNING`：黄色
-- `SETCOLOR_ERROR`：红色
 
 ## 最佳实践
 
@@ -184,9 +221,9 @@ echo "$system_info" | jq -r '.machine_type'  # "vm" 或 "pm"
 
 ## 故障排除
 
-**问：日志中不显示颜色**
-- 确保终端支持 ANSI 颜色代码
-- 检查输出是否被管道传输（管道中默认禁用颜色）
+**问：日志文件里有 ANSI 颜色码吗**
+- 没有。彩色输出仅写向终端，写入 `log_file` 的内容始终为纯文本
+- 终端出现乱码转义序列，说明该终端不支持 ANSI 颜色
 
 **问：`detect_system_info` 失败**
 - 安装 `jq`：`apt install jq` 或 `yum install jq`

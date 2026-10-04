@@ -8,7 +8,7 @@
 4. feat(func): 新增 `array_to_json`、`associate_array_to_json`、`backup_dir_with_rotation`、`is_element_in_array`、`str_strip_alternative`
 5. change(func): 移除导出变量 `SETCOLOR_*`, 颜色处理内化到 `__log`; 直接引用这些变量的脚本应改用 LOG* 函数
 6. docs: `func` 文件头部加 MIT SPDX 标识与版权声明
-7. TODO(docs): README.md / README.cn.md 的函数说明与本版同步
+7. docs: README.md / README.zh-CN.md 同步本版函数说明——新增数组与 JSON、目录备份章节与函数参考条目, 日志系统改为两路描述(终端彩色、日志文件纯文本), 删除 `SETCOLOR_*` 颜色代码节, 修正故障排除中"管道默认禁用颜色"的错误说法, 系统要求补 `jq`/`perl` 可选项; `README.cn.md` 更名 `README.zh-CN.md`
 8. TODO(lib): 远期规划——文件锁工具、指数退避重试、配置文件校验、bats-core 单元测试、性能基准
 
 ## Version=1.0.0
