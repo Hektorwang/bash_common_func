@@ -1,133 +1,24 @@
-# Release Notes
+# release-note
+
+## Version=1.1.0
+
+1. fix(func): `__log` 改为两路分离写入——彩色输出到终端、纯文本追加写日志各自独立, 修复原 `{...} | tee -a` 分组块把 ANSI 转义符一并写进 `log_file` 的问题
+2. fix(func): `str_strip` 改为 perl 优先, 覆盖全部 Unicode 空白(NBSP U+00A0、全角空格 U+3000 等), 无 perl 时退化为新增纯 bash 实现 `str_strip_alternative`(原 sed 实现不支持 `\u` 转义, 会误剥首尾 `u`/`3`/`0` 字符)
+3. fix(func): `backup_dir_with_rotation` 备份时间戳 pattern 由 12 位修正为 14 位(%Y%m%d%H%M%S), 修复轮换清理永远匹配不到旧备份的问题
+4. feat(func): 新增 `array_to_json`、`associate_array_to_json`、`backup_dir_with_rotation`、`is_element_in_array`、`str_strip_alternative`
+5. change(func): 移除导出变量 `SETCOLOR_*`, 颜色处理内化到 `__log`; 直接引用这些变量的脚本应改用 LOG* 函数
+6. docs: `func` 文件头部加 MIT SPDX 标识与版权声明
+7. TODO(docs): README.md / README.cn.md 的函数说明与本版同步
+8. TODO(lib): 远期规划——文件锁工具、指数退避重试、配置文件校验、bats-core 单元测试、性能基准
 
 ## Version=1.0.0
 
-2026-02-20
-
-### Initial Release
-
-This is the first stable release of the Bash Function Library, providing a comprehensive set of utilities for shell scripting.
-
-### Features
-
-#### Logging System
-- Implemented color-coded logging with 5 levels: DEBUG, INFO, SUCCESS, WARNING, ERROR
-- Automatic timestamp and line number tracking in log messages
-- Dual output support: console (stdout/stderr) and file
-- Configurable log file path via `log_file` environment variable
-
-#### Configuration Management
-- INI file parser with `get_ini_value` function
-- Case-insensitive section matching
-- Automatic variable loading with `get_var` function
-- Support for environment variable override
-
-#### String Processing
-- `str_strip` function for removing leading/trailing whitespace
-- Support for tabs, newlines, carriage returns, and full-width spaces (CJK)
-
-#### Version Comparison
-- Five comparison functions: `version_gt`, `version_lt`, `version_eq`, `version_ge`, `version_le`
-- Natural version sorting using `sort -V`
-- Support for complex version strings (e.g., "1.1.1q")
-
-#### Process Management
-- `proc_killer` function for graceful process termination
-- Configurable signal and grace period
-- Automatic escalation from SIGTERM to SIGKILL
-- `tmout` function as a lightweight timeout implementation
-
-#### Time Utilities
-- `_conv2sec` function for time string conversion
-- Support for s/m/h/d units
-- Decimal value support (e.g., 0.5h = 30 minutes)
-
-#### Network Utilities
-- `is_ip_in_network` function for IP range checking
-- Support for CIDR notation (192.168.1.0/24)
-- Support for subnet mask format (255.255.255.0)
-- Pure AWK implementation for portability
-
-#### System Detection
-- `detect_system_info` function for comprehensive system information
-- Distribution detection (Ubuntu, CentOS, Debian, etc.)
-- Package manager identification (apt, yum, dnf, zypper, pacman, apk)
-- Service manager detection (systemd, openrc, runit)
-- VM vs Physical Machine detection
-- JSON output format using jq
-
-#### Additional Utilities
-- `debug` function for enabling xtrace mode
-- `gracefully_abort` for handling user interruptions
-- `convert_syslog_timestamp` for syslog time conversion (example function)
-
-### Requirements
-- Bash 4.0 or higher (required for associative arrays in `detect_system_info`)
-- Standard Unix utilities: awk, sed, date, sort
-- Optional: jq (required only for `detect_system_info`)
-
-### Bug Fixes
-- Fixed uninitialized variable bug in `_conv2sec` function (unit extraction)
-- Replaced unsafe `eval` usage in `debug` function with indirect parameter expansion
-
-### Security Improvements
-- Removed `eval` from `debug` function to prevent code injection
-- Proper quoting throughout the codebase
-- Safe handling of user input in all functions
-
-### Documentation
-- Comprehensive inline documentation for all functions
-- Parameter descriptions and return code documentation
-- Usage examples in README.md
-- Chinese documentation (README.cn.md)
-
-### Known Limitations
-- `detect_system_info` requires jq to be installed
-- Color output may not work in all terminal emulators
-- `convert_syslog_timestamp` is provided as an example and may need customization
-- Cross-year log processing in `convert_syslog_timestamp` requires additional handling
-
-### Compatibility
-- Tested on Bash 4.0, 4.3, 4.4, 5.0, 5.1
-- Compatible with major Linux distributions:
-  - Debian/Ubuntu family
-  - RHEL/CentOS/Rocky/AlmaLinux family
-  - Arch Linux
-  - Alpine Linux
-  - openSUSE
-  - openEuler/HCE
-
-### Breaking Changes
-None (initial release)
-
-### Deprecations
-None (initial release)
-
-### Migration Guide
-Not applicable (initial release)
-
----
-
-## Upcoming Features (Planned for v1.1.0)
-
-- Enhanced error messages with suggestions
-- Additional string manipulation functions
-- File locking utilities
-- Retry mechanism with exponential backoff
-- Configuration file validation
-- Unit tests using bats-core
-- Performance benchmarks
-
----
-
-## Contributing
-
-We welcome contributions! Please see the README.md for contribution guidelines.
-
-## Support
-
-For bug reports and feature requests, please open an issue on the project repository.
-
----
-
-**Note**: This library follows [Semantic Versioning](https://semver.org/). Version numbers are formatted as MAJOR.MINOR.PATCH.
+1. feat(func): 日志系统——`__log` + LOGDEBUG/LOGINFO/LOGSUCCESS/LOGWARNING/LOGERROR 五级, 时间戳与调用行号自动记录, stdout/stderr 分流与 `log_file` 文件写入双路
+2. feat(func): 配置管理——`get_ini_value` INI 解析(节名大小写不敏感), `get_var` 变量加载(支持环境变量覆盖)
+3. feat(func): 字符串处理 `str_strip`(首尾空白剥离); 版本比较 `version_gt/lt/eq/ge/le`(sort -V 自然排序, 支持复杂版本串如 1.1.1q)
+4. feat(func): 进程管理——`proc_killer`(信号与宽限时间可配, SIGTERM 自动升级 SIGKILL), `tmout` 轻量超时; 时间工具 `_conv2sec`(s/m/h/d 单位与小数值如 0.5h)
+5. feat(func): 网络工具 `is_ip_in_network`(CIDR 与子网掩码两种格式, 纯 awk 实现保证可移植); 系统检测 `detect_system_info`(发行版/包管理器/服务管理器/VM 与物理机识别, JSON 输出依赖 jq)
+6. feat(func): 附加工具 `debug`(xtrace 模式, 移除 eval 防注入)、`gracefully_abort`(用户中断处理)、`convert_syslog_timestamp`(syslog 时间转换, 示例函数)
+7. fix: `_conv2sec` 单位提取的未初始化变量修复; `debug` 由 eval 改为间接参数展开, 消除代码注入面
+8. 兼容: Bash 4.0+(关联数组依赖), 实测 4.0/4.3/4.4/5.0/5.1; 覆盖 Debian/Ubuntu 系、RHEL/CentOS/Rocky/AlmaLinux 系、Arch、Alpine、openSUSE、openEuler/HCE
+9. 已知限制: `detect_system_info` 依赖 jq; `convert_syslog_timestamp` 为示例需按需定制, 跨年日志处理需额外开发; 部分终端模拟器彩色输出可能异常
